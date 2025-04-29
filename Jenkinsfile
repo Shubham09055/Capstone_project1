@@ -13,7 +13,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('backend') {
-                    sh 'docker build -t mern-backend .'
+                    bat 'docker build -t mern-backend .'
                 }
             }
         }
@@ -22,7 +22,7 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    sh 'docker build -t mern-frontend .'
+                    bat 'docker build -t mern-frontend .'
                 }
             }
         }
@@ -30,8 +30,8 @@ pipeline {
         // Stage 4: Deploy with Docker Compose
         stage('Deploy') {
             steps {
-                sh 'docker-compose down || true'  // Stop old containers (ignore errors)
-                sh 'docker-compose up -d'         // Start new containers
+                bat 'docker-compose down || true'  // Stop old containers (ignore errors)
+                bat 'docker-compose up -d'         // Start new containers
             }
         }
     }
