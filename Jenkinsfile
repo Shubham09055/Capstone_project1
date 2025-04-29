@@ -10,7 +10,27 @@ pipeline {
             }
         }
 
-        // Stage 2: Build Docker images sequentially
+        // Stage 2: Verify Dockerfiles exist
+        stage('Verify Files') {
+            steps {
+                script {
+                    def requiredFiles = [
+                        'backend/Dockerfile',
+                        'frontend/Dockerfile',
+                        'ml-service/Dockerfile',
+                        'docker-compose.yml'
+                    ]
+                    
+                    requiredFiles.each { file ->
+                        if (!fileExists(file)) {
+                            error("Missing required file: ${file}")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Stage 3: Build Docker images
         stage('Build') {
             steps {
                 dir('backend') {
@@ -25,22 +45,27 @@ pipeline {
             }
         }
 
-        // Stage 3: Deploy with Docker Compose
+        // Stage 4: Deploy
         stage('Deploy') {
             steps {
-                bat 'docker-compose down --remove-orphans || true'
+                bat 'docker-compose down --remove-orphans || exit 0'
                 bat 'docker-compose up -d'
                 
-                // Wait for ML service to become healthy
+                // Wait for services to start
                 script {
                     timeout(time: 2, unit: 'MINUTES') {
                         waitUntil {
-                            def status = bat(
-                                script: 'docker inspect --format="{{.State.Health.Status}}" capstone-ml-service',
-                                returnStdout: true
-                            ).trim()
-                            echo "ML Service status: ${status}"
-                            return status == 'healthy'
+                            try {
+                                def mlStatus = bat(
+                                    script: '@docker inspect --format="{{.State.Health.Status}}" capstone-ml-service || echo "starting"',
+                                    returnStdout: true
+                                ).trim()
+                                echo "ML Service status: ${mlStatus}"
+                                return mlStatus == 'healthy'
+                            } catch (Exception e) {
+                                echo "Waiting for services to start..."
+                                return false
+                            }
                         }
                     }
                 }
@@ -53,12 +78,12 @@ pipeline {
             // Clean up workspace
             cleanWs()
             
-            // Archive logs if build failed
+            // Collect logs on failure (Windows-compatible)
             script {
                 if (currentBuild.result == 'FAILURE') {
                     bat '''
                         docker ps -a > containers.log
-                        docker logs capstone-ml-service > ml-service.log 2>&1 || true
+                        @docker logs capstone-ml-service 2>&1 > ml-service.log || echo "No logs available"
                     '''
                     archiveArtifacts artifacts: '*.log', allowEmptyArchive: true
                 }
@@ -70,7 +95,7 @@ pipeline {
         }
 
         failure {
-            echo '❌ Pipeline failed! Check the logs for details.'
+            echo '❌ Pipeline failed! Check the archived logs for details.'
         }
     }
 }
