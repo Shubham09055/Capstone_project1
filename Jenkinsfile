@@ -17,7 +17,7 @@ pipeline {
                     def requiredFiles = [
                         'backend/Dockerfile': 'Backend Dockerfile',
                         'frontend/Dockerfile': 'Frontend Dockerfile',
-                        'ml-service/Dockerfile': 'ML Service Dockerfile',
+                        'ml-model/Dockerfile': 'ML-model Dockerfile',
                         'docker-compose.yml': 'Docker Compose file'
                     ]
                     
