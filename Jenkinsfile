@@ -5,7 +5,7 @@ pipeline {
         // Stage 1: Fetch code from Git
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/your-username/mern-docker.git'
+                git branch: 'main', url: 'https://github.com/Shubham09055/Capstone_project1.git'
             }
         }
 
