@@ -2,23 +2,25 @@ version: '3.8'
 
 services:
   mongo:
-    image: mongo:latest
+    image: mongo:6.0
     container_name: capstone-mongo
     volumes:
       - mongodb_data:/data/db
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-example}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-mydb}
     healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
       timeout: 30s
       retries: 5
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+    restart: unless-stopped
 
   ml-service:
-    build: ./ml-service
+    build: ./ml-model  # Changed from ml-service to match your directory structure
     container_name: capstone-ml-service
     depends_on:
       mongo:
@@ -26,7 +28,8 @@ services:
     ports:
       - "5000:5000"
     environment:
-      MONGO_URI: "mongodb://root:example@mongo:27017/mydb?authSource=admin"
+      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
+      FLASK_ENV: ${FLASK_ENV:-production}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 10s
@@ -40,11 +43,14 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      ml-service:
+        condition: service_healthy
     ports:
       - "3001:3001"
     environment:
-      MONGO_URI: "mongodb://root:example@mongo:27017/mydb?authSource=admin"
+      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
       ML_SERVICE_URL: "http://ml-service:5000"
+      NODE_ENV: ${NODE_ENV:-production}
     restart: unless-stopped
 
   frontend:
@@ -52,9 +58,11 @@ services:
     container_name: capstone-frontend
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "3000:80"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
     restart: unless-stopped
 
 volumes:
