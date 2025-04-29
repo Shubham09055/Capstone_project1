@@ -1,7 +1,25 @@
+# Core Flask
 flask==2.3.2
 flask-cors==4.0.0
+
+# Machine Learning
 joblib==1.3.2
 scikit-learn==1.6.1
+numpy==1.26.4  # Updated for security fixes
+pandas==2.2.1  # Updated for better performance
+
+# NLP Processing
 nltk==3.8.1
-pandas==2.0.3
-numpy==1.23.5
+
+# MongoDB Support
+pymongo==4.6.1
+dnspython==2.6.1  # Required for MongoDB SRV connections
+
+# Logging
+python-dotenv==1.0.1  # For environment variables
+logging-utils==1.0.1  # Enhanced logging
+
+# Development/Testing (optional)
+gunicorn==21.2.0  # Production WSGI server
+pytest==8.0.2  # Testing framework
+requests==2.31.0  # For health check testing

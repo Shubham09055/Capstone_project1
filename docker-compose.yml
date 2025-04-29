@@ -1,73 +1,60 @@
 version: '3.8'
 
 services:
-  backend:
-    build: ./backend
+  mongo:
+    image: mongo:latest
+    container_name: capstone-mongo
+    volumes:
+      - mongodb_data:/data/db
     ports:
-      - "5000:5000"
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 30s
+      retries: 5
     environment:
-      - MONGO_URI=mongodb://mongo:27017/emailspam?retryWrites=true&w=majority
-      - JWT_SECRET=yoursecretkey
-      - ML_SERVICE_URL=http://ml-service:5001
-      - NODE_ENV=production
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+
+  ml-service:
+    build: ./ml-service
+    container_name: capstone-ml-service
     depends_on:
       mongo:
         condition: service_healthy
-      ml-service:
-        condition: service_healthy
-    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      MONGO_URI: "mongodb://root:example@mongo:27017/mydb?authSource=admin"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/health || exit 1"]
-      interval: 30s
-      timeout: 15s
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 5
-      start_period: 20s
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: capstone-backend
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      MONGO_URI: "mongodb://root:example@mongo:27017/mydb?authSource=admin"
+      ML_SERVICE_URL: "http://ml-service:5000"
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
-    ports:
-      - "3000:80"
+    container_name: capstone-frontend
     depends_on:
       backend:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  ml-service:
-    build: ./ml-model
+        condition: service_started
     ports:
-      - "5001:5001"
-    environment:
-      - FLASK_ENV=production
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./ml-model:/usr/src/app
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl","-f" ," http://localhost:5001/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  mongo:
-    image: mongo:6.0
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    environment:
-      - MONGO_INITDB_DATABASE=emailspam
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 8s
-      retries: 5
-      start_period: 40s
+      - "3000:80"
     restart: unless-stopped
 
 volumes:
