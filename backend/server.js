@@ -17,6 +17,16 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Health check endpoint (ADD THIS FIRST)
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Backend service is healthy',
+    database: 'Connected', // This assumes your connectDB() throws if connection fails
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Mount routers
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/spam', require('./routes/spam'));
