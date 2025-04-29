@@ -1,21 +1,27 @@
+# ml-service/Dockerfile
 FROM python:3.9-slim
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install specific versions that work together
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Download NLTK data
 RUN python -m nltk.downloader stopwords
 
+# Copy application code
 COPY . .
 
-EXPOSE 5001
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
 
+# Run the application
 CMD ["python", "api.py"]

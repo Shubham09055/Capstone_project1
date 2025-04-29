@@ -10,20 +10,22 @@ pipeline {
             }
         }
 
-        // Stage 2: Verify Dockerfiles exist
+        // Stage 2: Verify Files (with better error message)
         stage('Verify Files') {
             steps {
                 script {
                     def requiredFiles = [
-                        'backend/Dockerfile',
-                        'frontend/Dockerfile',
-                        'ml-service/Dockerfile',
-                        'docker-compose.yml'
+                        'backend/Dockerfile': 'Backend Dockerfile',
+                        'frontend/Dockerfile': 'Frontend Dockerfile',
+                        'ml-service/Dockerfile': 'ML Service Dockerfile',
+                        'docker-compose.yml': 'Docker Compose file'
                     ]
                     
-                    requiredFiles.each { file ->
+                    requiredFiles.each { file, description ->
                         if (!fileExists(file)) {
-                            error("Missing required file: ${file}")
+                            error("🚨 Missing required file: ${description} (${file})")
+                        } else {
+                            echo "✅ Found ${description}"
                         }
                     }
                 }
@@ -48,25 +50,27 @@ pipeline {
         // Stage 4: Deploy
         stage('Deploy') {
             steps {
-                bat 'docker-compose down --remove-orphans || exit 0'
-                bat 'docker-compose up -d'
-                
-                // Wait for services to start
                 script {
-                    timeout(time: 2, unit: 'MINUTES') {
-                        waitUntil {
-                            try {
-                                def mlStatus = bat(
-                                    script: '@docker inspect --format="{{.State.Health.Status}}" capstone-ml-service || echo "starting"',
+                    try {
+                        // Stop and clean up any existing containers
+                        bat 'docker-compose down --remove-orphans || echo "No containers to remove"'
+                        
+                        // Start new containers
+                        bat 'docker-compose up -d'
+                        
+                        // Wait for ML service to become healthy
+                        timeout(time: 2, unit: 'MINUTES') {
+                            waitUntil {
+                                def status = bat(
+                                    script: 'docker inspect --format="{{.State.Health.Status}}" capstone-ml-service 2> nul || echo "starting"',
                                     returnStdout: true
                                 ).trim()
-                                echo "ML Service status: ${mlStatus}"
-                                return mlStatus == 'healthy'
-                            } catch (Exception e) {
-                                echo "Waiting for services to start..."
-                                return false
+                                echo "ML Service status: ${status}"
+                                return status == 'healthy'
                             }
                         }
+                    } catch (Exception e) {
+                        error("Deployment failed: ${e.message}")
                     }
                 }
             }
@@ -82,8 +86,8 @@ pipeline {
             script {
                 if (currentBuild.result == 'FAILURE') {
                     bat '''
-                        docker ps -a > containers.log
-                        @docker logs capstone-ml-service 2>&1 > ml-service.log || echo "No logs available"
+                        docker ps -a > containers.log 2>&1
+                        docker logs capstone-ml-service > ml-service.log 2>&1 || echo "No logs available" > ml-service.log
                     '''
                     archiveArtifacts artifacts: '*.log', allowEmptyArchive: true
                 }
@@ -91,11 +95,15 @@ pipeline {
         }
 
         success {
-            echo '✅ Pipeline succeeded!'
+            echo '✅ Pipeline succeeded! All services are up and running.'
         }
 
         failure {
             echo '❌ Pipeline failed! Check the archived logs for details.'
+            echo 'Possible issues:'
+            echo '- Missing Dockerfile in ml-service directory'
+            echo '- Docker build errors'
+            echo '- Container health check failures'
         }
     }
 }
