@@ -17,7 +17,7 @@ dnspython==2.6.1  # Required for MongoDB SRV connections
 
 # Logging
 python-dotenv==1.0.1  # For environment variables
-logging-utils==1.0.1  # Enhanced logging
+logging-utils==1.0.2  # Enhanced logging
 
 # Development/Testing (optional)
 gunicorn==21.2.0  # Production WSGI server
