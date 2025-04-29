@@ -19,9 +19,9 @@ services:
       retries: 5
     restart: unless-stopped
 
-  ml-service:
+  ml-model:
     build: ./ml-model  # Changed from ml-service to match your directory structure
-    container_name: capstone-ml-service
+    container_name: capstone-ml-model
     depends_on:
       mongo:
         condition: service_healthy
@@ -43,13 +43,13 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      ml-service:
+      ml-model:
         condition: service_healthy
     ports:
       - "3001:3001"
     environment:
       MONGO_URI: "mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
-      ML_SERVICE_URL: "http://ml-service:5000"
+      ML_model_URL: "http://ml-model:5000"
       NODE_ENV: ${NODE_ENV:-production}
     restart: unless-stopped
 
