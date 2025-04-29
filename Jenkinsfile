@@ -41,8 +41,8 @@ pipeline {
                 dir('frontend') {
                     bat 'docker build -t capstone-frontend .'
                 }
-                dir('ml-service') {
-                    bat 'docker build -t capstone-ml-service .'
+                dir('ml-model') {
+                    bat 'docker build -t capstone-ml-model .'
                 }
             }
         }
@@ -58,14 +58,14 @@ pipeline {
                         // Start new containers
                         bat 'docker-compose up -d'
                         
-                        // Wait for ML service to become healthy
+                        // Wait for ML model to become healthy
                         timeout(time: 2, unit: 'MINUTES') {
                             waitUntil {
                                 def status = bat(
-                                    script: 'docker inspect --format="{{.State.Health.Status}}" capstone-ml-service 2> nul || echo "starting"',
+                                    script: 'docker inspect --format="{{.State.Health.Status}}" capstone-ml-model 2> nul || echo "starting"',
                                     returnStdout: true
                                 ).trim()
-                                echo "ML Service status: ${status}"
+                                echo "ML model status: ${status}"
                                 return status == 'healthy'
                             }
                         }
@@ -87,7 +87,7 @@ pipeline {
                 if (currentBuild.result == 'FAILURE') {
                     bat '''
                         docker ps -a > containers.log 2>&1
-                        docker logs capstone-ml-service > ml-service.log 2>&1 || echo "No logs available" > ml-service.log
+                        docker logs capstone-ml-model > ml-model.log 2>&1 || echo "No logs available" > ml-model.log
                     '''
                     archiveArtifacts artifacts: '*.log', allowEmptyArchive: true
                 }
@@ -101,7 +101,7 @@ pipeline {
         failure {
             echo '❌ Pipeline failed! Check the archived logs for details.'
             echo 'Possible issues:'
-            echo '- Missing Dockerfile in ml-service directory'
+            echo '- Missing Dockerfile in ml-model directory'
             echo '- Docker build errors'
             echo '- Container health check failures'
         }
