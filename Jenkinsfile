@@ -11,38 +11,38 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main', 
-                url: 'https://github.com/Shubham09055/Capstone_project1.git'
+                    url: 'https://github.com/Shubham09055/Capstone_project1.git'
             }
         }
 
         stage('Build') {
             steps {
                 script {
-                    // Build all services in sequence (parallel not recommended on Windows)
+                    // Manually build Docker images
+                    dir('ml-model') {
+                        bat 'docker build -t capstone-ml-model .'
+                    }
                     dir('backend') {
                         bat 'docker build -t capstone-backend .'
                     }
                     dir('frontend') {
                         bat 'docker build -t capstone-frontend .'
                     }
-                    dir('ml-model') {
-                        bat 'docker build -t capstone-ml-model .'
-                    }
                 }
             }
         }
 
-        stage("Stop Existing Containers") {
+        stage("Stop & Remove Existing Containers") {
             steps {
                 script {
-                    // Check if containers are running
-                    def running = bat(script: 'docker-compose ps -q', returnStdout: true).trim()
-                    if (running) {
-                        echo "Stopping running containers..."
-                        bat 'docker-compose down --remove-orphans'
-                    } else {
-                        echo "No containers to stop"
+                    echo "Cleaning up existing containers if present..."
+                    def containers = ['capstone-ml-model', 'capstone-backend', 'capstone-frontend']
+                    containers.each { container ->
+                        bat "docker rm -f ${container} || echo Not running"
                     }
+
+                    // Optionally remove unused networks or volumes
+                    bat 'docker network prune -f'
                 }
             }
         }
@@ -50,16 +50,14 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    // Start services
                     bat 'docker-compose up -d'
-                    
-                    // Health checks for Windows
+
                     def services = [
+                        [name: 'ml-model', container: 'capstone-ml-model', timeout: 2],
                         [name: 'backend', container: 'capstone-backend', timeout: 2],
-                        [name: 'frontend', container: 'capstone-frontend', timeout: 1],
-                        [name: 'ml-model', container: 'capstone-ml-model', timeout: 2]
+                        [name: 'frontend', container: 'capstone-frontend', timeout: 1]
                     ]
-                    
+
                     services.each { service ->
                         timeout(time: service.timeout, unit: 'MINUTES') {
                             waitUntil {
@@ -84,13 +82,12 @@ pipeline {
 
     post {
         always {
-            // Collect logs from all containers
             script {
                 bat '''
                     echo === Docker Compose Logs === > all_logs.log
                     docker-compose logs --no-color >> all_logs.log 2>&1
+
                     echo. >> all_logs.log
-                    
                     echo === Docker Container List === >> all_logs.log
                     docker ps -a >> all_logs.log 2>&1
                 '''
@@ -100,31 +97,26 @@ pipeline {
         }
 
         failure {
-            echo '❌ Pipeline failed! Check the logs for details.'
-            
-            // Enhanced debugging information for Windows
+            echo '❌ Pipeline failed! Check logs.'
             script {
                 bat '''
-                    echo === Failed Container Logs === > diagnostics.log
+                    echo === Diagnostics === > diagnostics.log
                     for /f "tokens=*" %%i in ('docker-compose ps --services') do (
-                        docker inspect --format="{{.State.Status}}" capstone_%%i_1 | find /i "running" > nul
-                        if errorlevel 1 (
-                            echo === Logs for %%i === >> diagnostics.log
-                            docker-compose logs --no-color %%i >> diagnostics.log 2>&1
-                            echo. >> diagnostics.log
-                        )
+                        echo === Logs for %%i === >> diagnostics.log
+                        docker-compose logs --no-color %%i >> diagnostics.log 2>&1
+                        echo. >> diagnostics.log
                     )
-                    
-                    echo === Network Inspection === >> diagnostics.log
+
+                    echo === Network Info === >> diagnostics.log
                     docker network inspect %COMPOSE_PROJECT_NAME%_default >> diagnostics.log 2>&1
-                    
-                    echo === Volume Inspection === >> diagnostics.log
+
+                    echo === Volume Info === >> diagnostics.log
                     docker volume ls -f name=%COMPOSE_PROJECT_NAME% >> diagnostics.log 2>&1
                 '''
                 archiveArtifacts artifacts: 'diagnostics.log', allowEmptyArchive: true
             }
         }
-        
+
         success {
             echo '✅ Pipeline succeeded! All services are up and healthy.'
         }
