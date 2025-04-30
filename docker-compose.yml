@@ -1,47 +1,120 @@
+# version: '3.8'
+
+# services:
+#   mongo:
+#     image: mongo:6.0  # Specify version for stability
+#     container_name: capstone-mongo
+#     volumes:
+#       - mongodb_data:/data/db
+#     ports:
+#       - "27017:27017"
+#     environment:
+#       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-shubhamgarg22}
+#       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-shubhamgarg22}
+#       MONGO_INITDB_DATABASE: ${MONGO_DB:-mydb}
+#     healthcheck:
+#       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+#       interval: 10s
+#       timeout: 30s
+#       retries: 10
+#       start_period: 40s  # Added start period
+#     restart: unless-stopped
+
+#   ml-model:
+#     build: 
+#       context: ./ml-model
+#       dockerfile: Dockerfile
+#     container_name: capstone-ml-model
+#     depends_on:
+#       mongo:
+#         condition: service_healthy
+#     ports:
+#       - "5000:5000"
+#     environment:
+#       MONGO_URI: "mongodb://${MONGO_ROOT_USER:-shubhamgarg22}:${MONGO_ROOT_PASSWORD:-shubhamgarg22}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
+#       PYTHONUNBUFFERED: 1  # Better Python logging
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]  # Use dedicated health endpoint
+#       interval: 30s
+#       timeout: 10s
+#       retries: 10
+#       start_period: 90s  # ML models may need longer startup
+#     restart: unless-stopped
+#     networks:
+#       - default
+
+#   backend:
+#     build: 
+#       context: ./backend
+#       dockerfile: Dockerfile
+#     container_name: capstone-backend
+#     depends_on:
+#       mongo:
+#         condition: service_healthy
+#       ml-model:
+#         condition: service_healthy
+#     ports:
+#       - "3001:3001"
+#     environment:
+#       MONGO_URI: "mongodb://${MONGO_ROOT_USER:-shubhamgarg22}:${MONGO_ROOT_PASSWORD:-shubhamgarg22}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
+#       ML_MODEL_URL: "http://ml-model:5000"
+#       NODE_ENV: ${NODE_ENV:-production}
+#       PORT: 3001
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 5
+#     restart: unless-stopped
+
+#   frontend:
+#     build: 
+#       context: ./frontend
+#       dockerfile: Dockerfile
+#     container_name: capstone-frontend
+#     depends_on:
+#       backend:
+#         condition: service_healthy
+#     ports:
+#       - "3000:80"
+#     environment:
+#       REACT_APP_API_URL: "http://localhost:3001"  # Frontend needs to know backend URL
+#       NODE_ENV: ${NODE_ENV:-production}
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -f http://localhost || exit 1"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 5
+#     restart: unless-stopped
+
+# volumes:
+#   mongodb_data:
+#     driver: local
+
+# # Optional network configuration for better isolation
+# networks:
+#   default:
+#     driver: bridge
+
 version: '3.8'
 
 services:
-  mongo:
-    image: mongo:6.0  # Specify version for stability
-    container_name: capstone-mongo
-    volumes:
-      - mongodb_data:/data/db
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-shubhamgarg22}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-shubhamgarg22}
-      MONGO_INITDB_DATABASE: ${MONGO_DB:-mydb}
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 30s
-      retries: 10
-      start_period: 40s  # Added start period
-    restart: unless-stopped
-
   ml-model:
     build: 
       context: ./ml-model
       dockerfile: Dockerfile
     container_name: capstone-ml-model
-    depends_on:
-      mongo:
-        condition: service_healthy
     ports:
       - "5000:5000"
     environment:
-      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-shubhamgarg22}:${MONGO_ROOT_PASSWORD:-shubhamgarg22}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
-      PYTHONUNBUFFERED: 1  # Better Python logging
+      PYTHONUNBUFFERED: 1
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]  # Use dedicated health endpoint
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 90s  # ML models may need longer startup
+      start_period: 90s
     restart: unless-stopped
-    networks:
-      - default
 
   backend:
     build: 
@@ -49,14 +122,11 @@ services:
       dockerfile: Dockerfile
     container_name: capstone-backend
     depends_on:
-      mongo:
-        condition: service_healthy
       ml-model:
         condition: service_healthy
     ports:
       - "3001:3001"
     environment:
-      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-shubhamgarg22}:${MONGO_ROOT_PASSWORD:-shubhamgarg22}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
       ML_MODEL_URL: "http://ml-model:5000"
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
@@ -78,7 +148,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      REACT_APP_API_URL: "http://localhost:3001"  # Frontend needs to know backend URL
+      REACT_APP_API_URL: "http://localhost:3001"
       NODE_ENV: ${NODE_ENV:-production}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost || exit 1"]
@@ -86,12 +156,3 @@ services:
       timeout: 10s
       retries: 5
     restart: unless-stopped
-
-volumes:
-  mongodb_data:
-    driver: local
-
-# Optional network configuration for better isolation
-networks:
-  default:
-    driver: bridge
