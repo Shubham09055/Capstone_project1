@@ -37,7 +37,7 @@ pipeline {
                         bat 'docker-compose down --remove-orphans || echo "No containers to remove"'
                         
                         // Start services with proper initialization order
-                        bat 'docker-compose up -d mongo'
+                        // bat 'docker-compose up -d mongo'
                         
                         // Wait for MongoDB to become healthy with extended timeout
                         timeout(time: 2, unit: 'MINUTES') {
