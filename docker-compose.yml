@@ -9,8 +9,8 @@ services:
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-example}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-shubhamgarg22}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-shubhamgarg22}
       MONGO_INITDB_DATABASE: ${MONGO_DB:-mydb}
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
@@ -31,7 +31,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
+      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-shubhamgarg22}:${MONGO_ROOT_PASSWORD:-shubhamgarg22}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
       PYTHONUNBUFFERED: 1  # Better Python logging
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]  # Use dedicated health endpoint
@@ -56,7 +56,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
+      MONGO_URI: "mongodb://${MONGO_ROOT_USER:-shubhamgarg22}:${MONGO_ROOT_PASSWORD:-shubhamgarg22}@mongo:27017/${MONGO_DB:-mydb}?authSource=admin"
       ML_MODEL_URL: "http://ml-model:5000"
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
