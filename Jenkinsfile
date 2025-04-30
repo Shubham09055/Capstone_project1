@@ -40,7 +40,7 @@ pipeline {
                         bat 'docker-compose up -d mongo'
                         
                         // Wait for MongoDB to become healthy with extended timeout
-                        timeout(time: 3, unit: 'MINUTES') {
+                        timeout(time: 2, unit: 'MINUTES') {
                             waitUntil {
                                 def status = bat(
                                     script: 'docker inspect --format="{{.State.Health.Status}}" capstone-mongo 2> nul || echo "starting"',
@@ -107,11 +107,11 @@ pipeline {
             // Additional debugging commands
             bat '''
                 echo "=== Docker Network Inspection ===" >> network.log
-                docker network inspect ${COMPOSE_PROJECT_NAME}_default >> network.log 2>&1
+                docker network inspect capstone_default >> network.log 2>&1
                 echo. >> network.log
                 
                 echo "=== Docker Volume Inspection ===" >> network.log
-                docker volume inspect ${COMPOSE_PROJECT_NAME}_mongodb_data >> network.log 2>&1
+                docker volume inspect capstone_mongodb_data >> network.log 2>&1
             '''
             archiveArtifacts artifacts: 'network.log', allowEmptyArchive: true
         }
