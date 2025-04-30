@@ -36,7 +36,7 @@ CORS(app)
 
 # MongoDB Connection with Retry Logic
 def connect_to_mongo(max_retries=5, retry_delay=2):
-    mongo_uri = os.getenv('MONGO_URI', 'mongodb://root:example@mongo:27017/mydb?authSource=admin')
+    mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/mydb?authSource=admin')
     for attempt in range(max_retries):
         try:
             client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
