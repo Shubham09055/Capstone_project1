@@ -17,7 +17,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 30s  # Added start period
+      start_period: 40s  # Added start period
     restart: unless-stopped
 
   ml-model:
