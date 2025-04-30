@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   ml-model:
     build: 
@@ -5,16 +7,20 @@ services:
       dockerfile: Dockerfile
     container_name: capstone-ml-model
     ports:
-      - "5000:5000"
+      - "5001:5001"  # Changed to match your Flask app's port (5001)
     environment:
       PYTHONUNBUFFERED: 1
+      FLASK_APP: api.py
+      FLASK_ENV: production
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://0.0.0.0:5000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5001/ || exit 1"]  # Changed endpoint
       interval: 30s
       timeout: 10s
-      retries: 10
-      start_period: 180s
+      retries: 3  # Reduced retries
+      start_period: 30s  # Reduced start period
     restart: unless-stopped
+    networks:
+      - app-network  # Added explicit network
 
   backend:
     build: 
@@ -27,15 +33,17 @@ services:
     ports:
       - "3001:3001"
     environment:
-      ML_MODEL_URL: "http://ml-model:5000"
+      ML_MODEL_URL: "http://ml-model:5001"  # Changed port to 5001
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3  # Reduced retries
     restart: unless-stopped
+    networks:
+      - app-network
 
   frontend:
     build: 
@@ -46,13 +54,19 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "3000:80"
+      - "3000:80"  # Keep as is (frontend typically runs on 80 internally)
     environment:
-      REACT_APP_API_URL: "http://backend:3001"
+      REACT_APP_API_URL: "http://localhost:3001"  # Changed to localhost for client-side calls
       NODE_ENV: ${NODE_ENV:-production}
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://backend:3001/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]  # Changed to port 80
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3  # Reduced retries
     restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

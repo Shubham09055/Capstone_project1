@@ -1,27 +1,24 @@
-# ml-service/Dockerfile
+# Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
+# Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the current directory contents into the container at /app
+COPY . /app
 
-# Install Python dependencies
-COPY requirements.txt .
+# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download NLTK data
-RUN python -m nltk.downloader stopwords
+# Download NLTK stopwords
+RUN python -c "import nltk; nltk.download('stopwords')"
 
-# Copy application code
-COPY . .
+# Make port 5001 available to the world outside this container
+EXPOSE 5001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+# Define environment variable
+ENV FLASK_APP=api.py
+ENV FLASK_ENV=production
 
-# Run the application
-CMD ["python", "api.py"]
+# Run api.py when the container launches
+CMD ["flask", "run", "--host", "0.0.0.0", "--port", "5001"]

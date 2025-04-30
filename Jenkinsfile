@@ -17,14 +17,32 @@ pipeline {
 
         stage('Build') {
             steps {
-                dir('backend') {
-                    bat 'docker build -t capstone-backend .'
+                script {
+                    // Build all services in sequence (parallel not recommended on Windows)
+                    dir('backend') {
+                        bat 'docker build -t capstone-backend .'
+                    }
+                    dir('frontend') {
+                        bat 'docker build -t capstone-frontend .'
+                    }
+                    dir('ml-model') {
+                        bat 'docker build -t capstone-ml-model .'
+                    }
                 }
-                dir('frontend') {
-                    bat 'docker build -t capstone-frontend .'
-                }
-                dir('ml-model') {
-                    bat 'docker build -t capstone-ml-model .'
+            }
+        }
+
+        stage("Stop Existing Containers") {
+            steps {
+                script {
+                    // Check if containers are running
+                    def running = bat(script: 'docker-compose ps -q', returnStdout: true).trim()
+                    if (running) {
+                        echo "Stopping running containers..."
+                        bat 'docker-compose down --remove-orphans'
+                    } else {
+                        echo "No containers to stop"
+                    }
                 }
             }
         }
@@ -32,58 +50,32 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    try {
-                        // Clean up previous deployment
-                        bat 'docker-compose down --remove-orphans || echo "No containers to remove"'
-                        
-                        // Start services with proper initialization order
-                        bat 'docker-compose up -d '
-                        
-                        // Wait for MongoDB to become healthy with extended timeout
-                        timeout(time: 2, unit: 'MINUTES') {
+                    // Start services
+                    bat 'docker-compose up -d'
+                    
+                    // Health checks for Windows
+                    def services = [
+                        [name: 'backend', container: 'capstone-backend', timeout: 2],
+                        [name: 'frontend', container: 'capstone-frontend', timeout: 1],
+                        [name: 'ml-model', container: 'capstone-ml-model', timeout: 2]
+                    ]
+                    
+                    services.each { service ->
+                        timeout(time: service.timeout, unit: 'MINUTES') {
                             waitUntil {
-                                def status = bat(
-                                    script: 'docker inspect --format="{{.State.Health.Status}}" capstone-mongo 2> nul || echo "starting"',
-                                    returnStdout: true
-                                ).trim()
-                                echo "MongoDB status: ${status}"
-                                return status == 'healthy'
+                                try {
+                                    def status = bat(
+                                        script: "@docker inspect --format=\"{{.State.Health.Status}}\" ${service.container} 2> nul || echo starting",
+                                        returnStdout: true
+                                    ).trim()
+                                    echo "${service.name} status: ${status}"
+                                    return status == 'healthy'
+                                } catch (Exception e) {
+                                    echo "Error checking ${service.name} status: ${e.getMessage()}"
+                                    return false
+                                }
                             }
                         }
-                        
-                        
-                        
-                        // Additional health checks for other services
-                        timeout(time: 2, unit: 'MINUTES') {
-                            waitUntil {
-                                def mlStatus = bat(
-                                    script: 'docker inspect --format="{{.State.Health.Status}}" capstone-ml-model 2> nul || echo "starting"',
-                                    returnStdout: true
-                                ).trim()
-                                echo "ML Model status: ${mlStatus}"
-                                return mlStatus == 'healthy'
-                            }
-                        }
-                        
-                    } catch (Exception e) {
-                        // Enhanced diagnostics
-                        bat '''
-                            echo "=== Docker Containers ===" > diagnostics.log
-                            docker ps -a >> diagnostics.log 2>&1
-                            echo. >> diagnostics.log
-                            
-                            echo "=== MongoDB Logs ===" >> diagnostics.log
-                            docker logs capstone-mongo >> diagnostics.log 2>&1 || echo "No MongoDB logs" >> diagnostics.log
-                            echo. >> diagnostics.log
-                            
-                            echo "=== ML Model Logs ===" >> diagnostics.log
-                            docker logs capstone-ml-model >> diagnostics.log 2>&1 || echo "No ML Model logs" >> diagnostics.log
-                            echo. >> diagnostics.log
-                            
-                            echo "=== Docker Compose Logs ===" >> diagnostics.log
-                            docker-compose logs --no-color >> diagnostics.log 2>&1
-                        '''
-                        error("Deployment failed: ${e.message}")
                     }
                 }
             }
@@ -92,28 +84,49 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'diagnostics.log', allowEmptyArchive: true
-            cleanWs()
+            // Collect logs from all containers
+            script {
+                bat '''
+                    echo === Docker Compose Logs === > all_logs.log
+                    docker-compose logs --no-color >> all_logs.log 2>&1
+                    echo. >> all_logs.log
+                    
+                    echo === Docker Container List === >> all_logs.log
+                    docker ps -a >> all_logs.log 2>&1
+                '''
+                archiveArtifacts artifacts: 'all_logs.log', allowEmptyArchive: true
+                cleanWs()
+            }
         }
 
         failure {
-            echo '❌ Pipeline failed! Check the diagnostics.log for details.'
-            echo 'Common issues:'
-            echo '- MongoDB not initializing properly'
-            echo '- ML model service failing to start'
-            echo '- Network connectivity issues between containers'
-            echo '- Resource constraints (check Docker memory/CPU allocation)'
+            echo '❌ Pipeline failed! Check the logs for details.'
             
-            // Additional debugging commands
-            bat '''
-                echo "=== Docker Network Inspection ===" >> network.log
-                docker network inspect capstone_default >> network.log 2>&1
-                echo. >> network.log
-                
-                echo "=== Docker Volume Inspection ===" >> network.log
-                docker volume inspect capstone_mongodb_data >> network.log 2>&1
-            '''
-            archiveArtifacts artifacts: 'network.log', allowEmptyArchive: true
+            // Enhanced debugging information for Windows
+            script {
+                bat '''
+                    echo === Failed Container Logs === > diagnostics.log
+                    for /f "tokens=*" %%i in ('docker-compose ps --services') do (
+                        docker inspect --format="{{.State.Status}}" capstone_%%i_1 | find /i "running" > nul
+                        if errorlevel 1 (
+                            echo === Logs for %%i === >> diagnostics.log
+                            docker-compose logs --no-color %%i >> diagnostics.log 2>&1
+                            echo. >> diagnostics.log
+                        )
+                    )
+                    
+                    echo === Network Inspection === >> diagnostics.log
+                    docker network inspect %COMPOSE_PROJECT_NAME%_default >> diagnostics.log 2>&1
+                    
+                    echo === Volume Inspection === >> diagnostics.log
+                    docker volume ls -f name=%COMPOSE_PROJECT_NAME% >> diagnostics.log 2>&1
+                '''
+                archiveArtifacts artifacts: 'diagnostics.log', allowEmptyArchive: true
+            }
+        }
+        
+        success {
+            echo '✅ Pipeline succeeded! All services are up and healthy.'
         }
     }
 }
