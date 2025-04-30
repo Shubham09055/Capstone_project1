@@ -40,7 +40,7 @@ pipeline {
                         bat 'docker-compose up -d mongo'
                         
                         // Wait for MongoDB to become healthy with extended timeout
-                        timeout(time: 5, unit: 'MINUTES') {
+                        timeout(time: 3, unit: 'MINUTES') {
                             waitUntil {
                                 def status = bat(
                                     script: 'docker inspect --format="{{.State.Health.Status}}" capstone-mongo 2> nul || echo "starting"',
@@ -51,8 +51,7 @@ pipeline {
                             }
                         }
                         
-                        // Start remaining services
-                        bat 'docker-compose up -d'
+                        
                         
                         // Additional health checks for other services
                         timeout(time: 2, unit: 'MINUTES') {
